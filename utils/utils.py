@@ -10,6 +10,9 @@ import torch.nn.functional as F
 import copy
 from scipy.signal import savgol_filter
 from utils.loss import DiceLoss,FocalLoss,loss_compu,rmse,mae
+import logging
+import os
+import time
 
 
 def train_step(model ,features ,labels ,epoch):
@@ -70,7 +73,7 @@ def valid_step(model ,features ,labels ,epoch):
 # train_step(model,features,labels)
 
 
-def train_model_step(model ,epochs ,dl_train ,dl_valid ,scheduler ,PATH=False ,n_class=8 ,log_step_freq=100):
+def train_model_step(args,model ,epochs ,dl_train ,dl_valid ,scheduler ,PATH=False ,n_class=8 ,log_step_freq=100):
 
     #    metric_name = model.metric_name
     #     dfhistory = pd.DataFrame(columns = ["epoch","loss","accuracy","rmse","mae","dice","val_loss","val_accuracy","val_rmse","val_mae","val_dice"])
@@ -81,6 +84,7 @@ def train_model_step(model ,epochs ,dl_train ,dl_valid ,scheduler ,PATH=False ,n
     #   print("=========="*8 + "%s"%nowtime)
     since = time.time()
     best_mae =60.0
+    logger = getLogger(args)
     for epoch in range(1 ,epochs +1):
 
         # 1，训练循环-------------------------------------------------
@@ -159,10 +163,12 @@ def train_model_step(model ,epochs ,dl_train ,dl_valid ,scheduler ,PATH=False ,n
         # 打印epoch级别日志
         #         print(("\nEPOCH = %d, loss = %.3f,"+ "accuracy =%0.3f"+"rmse=%0.3f","mae=%0.3f","dice=%0.3f",
         #         "val_loss =%0.3f","val_accuracy =%0.3f","val_rmse=%0.3f","val_mae=%0.3f","val_dice=%0.3f") %info)
-        print(("\nEPOCH = %d,loss = %.3f,mae =%s,\nrmse =%s,\nval_loss =%0.3f,val_mae =%s,\nval_rmse =%s") %info)
+        # print(("\nEPOCH = %d,loss = %.3f,mae =%s,\nrmse =%s,\nval_loss =%0.3f,val_mae =%s,\nval_rmse =%s") %info)
         #         print(("\nEPOCH = %d,loss = %.3f,acc =%s,\nval_loss =%0.3f,val_acc =%s") % info)
         #       nowtime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         #       print("\n"+"=========="*8 + "%s"%nowtime)
+
+        logger.info(("EPOCH = %d,loss = %.3f,mae =%s,\nrmse =%s,\nval_loss =%0.3f,val_mae =%s,\nval_rmse =%s") %info)
         time_elapsed = time.time() - since;
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
@@ -207,7 +213,7 @@ def criteon(logit, lab, epoch, n_classes=10):
     # print(type(loss))
     return loss
 
-def train_model(model, epochs, dl_train, dl_valid, dl_test=None, PATH=False, n_class=8,
+def train_model(args,model, epochs, dl_train, dl_valid, dl_test=None, PATH=False, n_class=8,
                 optimizer=None,log_step_freq=100):
     #     model.optimizer = torch.optim.SGD(model.parameters(),lr = 0.01)
     #     model.optimizer = torch.optim.Adam(model.parameters(),lr = 0.001,weight_decay=0.0001)
@@ -222,7 +228,7 @@ def train_model(model, epochs, dl_train, dl_valid, dl_test=None, PATH=False, n_c
         else 0.5 * (math.cos((epoch - warm_up_epochs) / (epochs - warm_up_epochs) * math.pi) + 1)
     exp_scheduler = torch.optim.lr_scheduler.LambdaLR(model.optimizer, lr_lambda=warm_up_with_cosine_lr)
 
-    train_model_step(model, epochs, dl_train, dl_valid, exp_scheduler, PATH=PATH, n_class=n_class, log_step_freq=100)
+    train_model_step(args,model, epochs, dl_train, dl_valid, exp_scheduler, PATH=PATH, n_class=n_class, log_step_freq=100)
     if dl_test:
         evaluation(model, dl_test)
 
@@ -321,3 +327,28 @@ def evaluation(model, dl_test):
     print("val_metric_rmse:", val_metric_rmse)
     time_elapsed = time.time() - since;
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+
+
+def getLogger(args):
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)  # Log等级总开关
+    formatter = logging.Formatter(fmt="[%(asctime)s|%(filename)s|%(levelname)s] %(message)s",
+                                  datefmt="%a %b %d %H:%M:%S %Y")
+    # StreamHandler
+    sHandler = logging.StreamHandler()
+    sHandler.setFormatter(formatter)
+    logger.addHandler(sHandler)
+
+    # FileHandler
+    work_dir = os.path.join(args.output_dir,
+                            time.strftime("%Y-%m-%d-%H.%M", time.localtime()))  # 日志文件写入目录
+    if not os.path.exists(work_dir):
+        os.makedirs(work_dir)
+    fHandler = logging.FileHandler(work_dir + '/log.txt', mode='w')
+    fHandler.setLevel(logging.DEBUG)  # 输出到file的log等级的开关
+    fHandler.setFormatter(formatter)  # 定义handler的输出格式
+    logger.addHandler(fHandler)  # 将logger添加到handler里面
+
+    return logger
+

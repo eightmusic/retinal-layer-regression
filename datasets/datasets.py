@@ -8,8 +8,8 @@ import cv2
 import random
 import json
 
-lab_path='B:\eee\Downloads\oct_preprocess\label1/'
-img_path='B:\eee\Downloads\oct_preprocess\image1/'
+lab_path='B:\eee\Downloads\oct_preprocess\DED/label1/'
+img_path='B:\eee\Downloads\oct_preprocess\DED/image1/'
 
 def get_valid_idx(manualLayer):  #取出里面的[10,15,20,25,28,30,32,35,40,45,50]这些索引
     idx = []
